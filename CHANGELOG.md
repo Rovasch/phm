@@ -1,0 +1,28 @@
+# Changelog
+
+## [0.1.1] - 2026-04-09
+
+### Fixed
+
+- Critical panic during shell init when no PHP versions are installed
+- Path deduplication logic for bare `php` vs `php@X.Y` Homebrew formulae
+- Double clone in version resolution (added `Copy` derive to `PhpVersion`)
+
+### Changed
+
+- Simplified composer.json parsing API (removed unused `VersionSource` enum)
+- Extracted process liveness check into shared utility
+- Removed all dead code (8 compiler warnings → 0)
+- Updated GitHub Actions to latest versions (checkout v6, upload-artifact v7, download-artifact v8)
+
+## [0.1.0] - 2026-04-08
+
+### Added
+
+- Initial release
+- Per-shell PHP version switching via symlinks
+- Auto-detect PHP version from `.php-version` and `composer.json`
+- Automatic switching on `cd` via shell hook
+- Commands: `env`, `use`, `default`, `list`, `current`, `which`, `install`, `uninstall`, `exec`, `doctor`, `completions`
+- Shell support: zsh, bash, fish
+- Homebrew tap installation (`brew tap Rovasch/phm`)
