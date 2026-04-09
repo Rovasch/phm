@@ -78,6 +78,10 @@ pub fn read_current(multishell_path: &Path) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+pub fn is_process_alive(pid: i32) -> bool {
+    unsafe { libc::kill(pid, 0) == 0 }
+}
+
 /// Clean up stale multishell directories from dead PIDs.
 pub fn cleanup_stale() {
     let base = multishell_base();
@@ -94,11 +98,9 @@ pub fn cleanup_stale() {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
 
-        // Extract PID from "pid_timestamp" format
         if let Some(pid_str) = name_str.split('_').next() {
             if let Ok(pid) = pid_str.parse::<i32>() {
-                // Check if the process is still alive
-                if unsafe { libc::kill(pid, 0) } != 0 {
+                if !is_process_alive(pid) {
                     let _ = std::fs::remove_dir_all(entry.path());
                 }
             }

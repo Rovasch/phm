@@ -14,26 +14,19 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
     let current = multishell::read_current(&ms_path);
 
     // Determine target version
-    let (target, source_label) = if let Some(ref ver_str) = version {
-        // Explicit version passed
-        let ver = PhpVersion::parse(ver_str)
-            .ok_or_else(|| anyhow::anyhow!("invalid version: {}", ver_str))?;
-        (ver, String::new())
+    let target = if let Some(ref ver_str) = version {
+        PhpVersion::parse(ver_str)
+            .ok_or_else(|| anyhow::anyhow!("invalid version: {}", ver_str))?
     } else {
         // Auto-detect from .php-version or composer.json
         let cwd = std::env::current_dir()?;
-        match composer::find_version_file(&cwd)? {
-            Some(result) => {
-                (result.version, String::new())
-            }
+        match composer::find_version(&cwd)? {
+            Some(ver) => ver,
             None => {
                 // Fall back to default
                 match config::get_default()? {
-                    Some(ver_str) => {
-                        let ver = PhpVersion::parse(&ver_str)
-                            .ok_or_else(|| anyhow::anyhow!("invalid default version: {}", ver_str))?;
-                        (ver, " (default)".to_string())
-                    }
+                    Some(ver_str) => PhpVersion::parse(&ver_str)
+                        .ok_or_else(|| anyhow::anyhow!("invalid default version: {}", ver_str))?,
                     None => {
                         if silent_if_unchanged {
                             return Ok(());
@@ -48,39 +41,27 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
     let target_str = target.to_string();
 
     // Fast path: version unchanged
-    if let Some(ref cur) = current {
-        if *cur == target_str {
-            return Ok(());
-        }
+    if current.as_deref() == Some(&target_str) {
+        return Ok(());
     }
 
     // Find the installation
     let installations = discover::discover_versions()?;
-    let installation = installations.iter().find(|i| i.version == target);
+    let versions: Vec<PhpVersion> = installations.iter().map(|i| i.version).collect();
 
-    match installation {
+    // Try exact match first, then resolve via constraint
+    let resolved = if installations.iter().any(|i| i.version == target) {
+        Some(target)
+    } else {
+        PhpVersion::resolve(&target_str, &versions)
+    };
+
+    match resolved.and_then(|v| installations.iter().find(|i| i.version == v)) {
         Some(inst) => {
             multishell::link_version(&ms_path, inst)?;
-            println!(
-                "Using {}{}",
-                format!("PHP {}", target).green().bold(),
-                source_label.dimmed()
-            );
+            println!("Using {}", format!("PHP {}", inst.version).green().bold());
         }
         None => {
-            let resolved = PhpVersion::resolve(&target_str, &installations.iter().map(|i| i.version.clone()).collect::<Vec<_>>());
-            if let Some(resolved_ver) = resolved {
-                if let Some(inst) = installations.iter().find(|i| i.version == resolved_ver) {
-                    multishell::link_version(&ms_path, inst)?;
-                    println!(
-                        "Using {}{}",
-                        format!("PHP {}", resolved_ver).green().bold(),
-                        source_label.dimmed()
-                    );
-                    return Ok(());
-                }
-            }
-
             if !silent_if_unchanged {
                 eprintln!(
                     "{} PHP {} is not installed. Run: {}",

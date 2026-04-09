@@ -2,6 +2,7 @@ use anyhow::Result;
 use colored::Colorize;
 use crate::config;
 use crate::discover;
+use crate::multishell;
 
 pub fn run() -> Result<()> {
     let mut issues = 0;
@@ -90,7 +91,7 @@ pub fn run() -> Result<()> {
 
     // Check: stale multishell dirs
     let base = dirs::home_dir()
-        .unwrap()
+        .expect("could not determine home directory")
         .join(".local/state/phm/multishells");
     if base.exists() {
         let mut stale = 0;
@@ -100,7 +101,7 @@ pub fn run() -> Result<()> {
                 let name_str = name.to_string_lossy();
                 if let Some(pid_str) = name_str.split('_').next() {
                     if let Ok(pid) = pid_str.parse::<i32>() {
-                        if unsafe { libc::kill(pid, 0) } != 0 {
+                        if !multishell::is_process_alive(pid) {
                             stale += 1;
                         }
                     }

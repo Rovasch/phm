@@ -31,7 +31,10 @@ pub fn run(shell: ShellKind, use_on_cd: bool) -> Result<()> {
         };
 
         // Fall back to the highest installed version
-        let installation = installation.unwrap_or_else(|| installations.last().unwrap());
+        let installation = match installation.or_else(|| installations.last()) {
+            Some(inst) => inst,
+            None => anyhow::bail!("no PHP versions found"),
+        };
         multishell::link_version(&ms_path, installation)?;
     }
 

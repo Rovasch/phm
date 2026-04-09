@@ -1,12 +1,13 @@
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PhpVersion {
     pub major: u8,
     pub minor: u8,
 }
 
 impl PhpVersion {
+    #[cfg(test)]
     pub fn new(major: u8, minor: u8) -> Self {
         Self { major, minor }
     }
@@ -78,7 +79,7 @@ impl PhpVersion {
             .trim();
 
         // Handle wildcard: "8.2.*" -> "8.2"
-        let version_str = version_str.trim_end_matches(".*").trim_end_matches(".*");
+        let version_str = version_str.trim_end_matches(".*");
 
         Self::parse(version_str)
     }
@@ -87,12 +88,11 @@ impl PhpVersion {
     pub fn resolve(constraint: &str, installed: &[PhpVersion]) -> Option<PhpVersion> {
         let target = Self::from_constraint(constraint)?;
 
-        let mut candidates: Vec<&PhpVersion> = installed
+        installed
             .iter()
             .filter(|v| **v >= target)
-            .collect();
-        candidates.sort();
-        candidates.first().cloned().cloned()
+            .min()
+            .copied()
     }
 }
 

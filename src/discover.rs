@@ -6,13 +6,6 @@ use crate::version::PhpVersion;
 pub struct PhpInstallation {
     pub version: PhpVersion,
     pub bin_dir: PathBuf,
-    pub full_version: Option<String>,
-}
-
-impl PhpInstallation {
-    pub fn php_binary(&self) -> PathBuf {
-        self.bin_dir.join("php")
-    }
 }
 
 /// Discover all installed PHP versions from Homebrew.
@@ -38,7 +31,6 @@ pub fn discover_versions() -> Result<Vec<PhpInstallation>> {
                     installations.push(PhpInstallation {
                         version,
                         bin_dir,
-                        full_version: None,
                     });
                 }
             }
@@ -53,7 +45,6 @@ pub fn discover_versions() -> Result<Vec<PhpInstallation>> {
                     installations.push(PhpInstallation {
                         version,
                         bin_dir,
-                        full_version: None,
                     });
                 }
             }
@@ -78,17 +69,24 @@ fn detect_bare_php_version(php_opt_path: &Path) -> Option<PhpVersion> {
     PhpVersion::parse(last)
 }
 
+/// Check if a path is the bare "php" formula (not "php@X.Y").
+fn is_bare_php(bin_dir: &Path) -> bool {
+    // /opt/homebrew/opt/php/bin -> parent is /opt/homebrew/opt/php -> file_name is "php"
+    bin_dir.parent()
+        .and_then(|p| p.file_name())
+        .is_some_and(|name| name == "php")
+}
+
 /// Remove duplicates, preferring versioned formula (php@X.Y) over bare (php).
 fn deduplicate(installations: &mut Vec<PhpInstallation>) {
     let versioned: std::collections::HashSet<PhpVersion> = installations
         .iter()
-        .filter(|i| !i.bin_dir.to_string_lossy().contains("/opt/php/"))
-        .map(|i| i.version.clone())
+        .filter(|i| !is_bare_php(&i.bin_dir))
+        .map(|i| i.version)
         .collect();
 
     installations.retain(|i| {
-        let is_bare = i.bin_dir.to_string_lossy().contains("/opt/php/");
-        if is_bare {
+        if is_bare_php(&i.bin_dir) {
             !versioned.contains(&i.version)
         } else {
             true
@@ -96,23 +94,3 @@ fn deduplicate(installations: &mut Vec<PhpInstallation>) {
     });
 }
 
-/// Find a specific installed version.
-pub fn find_version(target: &PhpVersion) -> Result<Option<PhpInstallation>> {
-    let installations = discover_versions()?;
-    Ok(installations.into_iter().find(|i| i.version == *target))
-}
-
-/// Get the full version string (e.g., "8.2.30") by running `php -v`.
-pub fn get_full_version(installation: &PhpInstallation) -> Option<String> {
-    let php_bin = installation.bin_dir.join("php");
-    let output = std::process::Command::new(php_bin)
-        .arg("-v")
-        .output()
-        .ok()?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    // Parse "PHP 8.2.30 (cli) ..." -> "8.2.30"
-    stdout
-        .split_whitespace()
-        .nth(1)
-        .map(|s| s.to_string())
-}
