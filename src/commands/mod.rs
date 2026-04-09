@@ -1,0 +1,11 @@
+pub mod completions;
+pub mod current;
+pub mod default;
+pub mod doctor;
+pub mod env;
+pub mod exec;
+pub mod install;
+pub mod list;
+pub mod uninstall;
+pub mod use_version;
+pub mod which;
