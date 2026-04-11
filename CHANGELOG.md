@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.2] - 2026-04-11
+
+### Fixed
+
+- Composer wildcard constraints (`8.4.*`) no longer fall back to higher versions — if 8.4 is not installed, phm now correctly reports the error instead of silently switching to 8.5
+
+### Changed
+
+- Version resolution now tracks constraint upper bounds via `VersionConstraint` struct, properly modeling Composer semantics (`8.4.*` = exact, `^8.4` = same major, `>=8.4` = open-ended)
+- Fast-path check uses `satisfies()` instead of exact string match, avoiding redundant re-linking
+
 ## [0.1.1] - 2026-04-09
 
 ### Fixed

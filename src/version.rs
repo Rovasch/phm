@@ -23,8 +23,36 @@ impl PhpVersion {
         Some(Self { major, minor })
     }
 
-    /// Parse a composer version constraint and extract the target version.
-    /// Returns the minimum version that satisfies the constraint.
+}
+
+impl fmt::Display for PhpVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}", self.major, self.minor)
+    }
+}
+
+/// A version constraint with min and optional exclusive upper bound.
+/// Properly models composer semantics: `8.4.*` only matches 8.4,
+/// `^8.4` matches 8.4–8.x, `>=8.4` is open-ended.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VersionConstraint {
+    pub min: PhpVersion,
+    pub max: Option<PhpVersion>, // exclusive upper bound
+}
+
+impl VersionConstraint {
+    /// Constraint that matches exactly one minor version.
+    pub fn exact(version: PhpVersion) -> Self {
+        Self {
+            min: version,
+            max: Some(PhpVersion {
+                major: version.major,
+                minor: version.minor + 1,
+            }),
+        }
+    }
+
+    /// Parse a composer-style version constraint string.
     pub fn from_constraint(constraint: &str) -> Option<Self> {
         let constraint = constraint.trim();
 
@@ -35,30 +63,38 @@ impl PhpVersion {
             } else {
                 constraint.split('|').collect()
             };
-
-            // Parse all alternatives, return the one from the highest group
-            // (prefer newest major version)
-            let mut versions: Vec<PhpVersion> = parts
+            let mut constraints: Vec<VersionConstraint> = parts
                 .iter()
                 .filter_map(|p| Self::from_single_constraint(p))
                 .collect();
-            versions.sort();
-            // Return lowest from highest major group
-            return versions.last().cloned();
+            constraints.sort_by_key(|c| c.min);
+            // Prefer the highest minimum (newest)
+            return constraints.into_iter().last();
         }
 
-        // Handle AND constraints: ">=8.1 <9.0" — take the lower bound
-        if constraint.contains(' ') && !constraint.contains("||") {
+        // Handle AND constraints: ">=8.1 <9.0"
+        if constraint.contains(' ') {
             let parts: Vec<&str> = constraint.split_whitespace().collect();
+            let mut min = None;
+            let mut max = None;
             for part in &parts {
-                let trimmed = part.trim_start_matches(">=").trim_start_matches('>');
-                if part.starts_with(">=") || part.starts_with('>') {
-                    if let Some(v) = Self::parse(trimmed) {
-                        return Some(v);
+                if part.starts_with(">=") {
+                    min = PhpVersion::parse(part.trim_start_matches(">="));
+                } else if part.starts_with('>') {
+                    if let Some(v) = PhpVersion::parse(part.trim_start_matches('>')) {
+                        min = Some(PhpVersion { major: v.major, minor: v.minor + 1 });
                     }
+                } else if part.starts_with("<=") {
+                    if let Some(v) = PhpVersion::parse(part.trim_start_matches("<=")) {
+                        max = Some(PhpVersion { major: v.major, minor: v.minor + 1 });
+                    }
+                } else if part.starts_with('<') {
+                    max = PhpVersion::parse(part.trim_start_matches('<'));
                 }
             }
-            // Fallback: parse first part
+            if let Some(min_v) = min {
+                return Some(Self { min: min_v, max });
+            }
             return Self::from_single_constraint(parts[0]);
         }
 
@@ -68,37 +104,82 @@ impl PhpVersion {
     fn from_single_constraint(s: &str) -> Option<Self> {
         let s = s.trim();
 
-        // Strip constraint operators
-        let version_str = s
-            .trim_start_matches(">=")
-            .trim_start_matches("<=")
-            .trim_start_matches('>')
-            .trim_start_matches('<')
-            .trim_start_matches('^')
-            .trim_start_matches('~')
-            .trim();
+        // Wildcard: "8.4.*" → exact 8.4
+        if s.ends_with(".*") {
+            let v = PhpVersion::parse(s.trim_end_matches(".*"))?;
+            return Some(Self::exact(v));
+        }
 
-        // Handle wildcard: "8.2.*" -> "8.2"
-        let version_str = version_str.trim_end_matches(".*");
+        // Tilde: ~X.Y.Z → exact minor, ~X.Y → same major
+        if s.starts_with('~') {
+            let version_str = s.trim_start_matches('~').trim();
+            let parts: Vec<&str> = version_str.split('.').collect();
+            let v = PhpVersion::parse(version_str)?;
+            if parts.len() >= 3 {
+                // ~8.4.0 → >=8.4.0 <8.5.0 → exact minor
+                return Some(Self::exact(v));
+            }
+            // ~8.4 → >=8.4.0 <9.0.0
+            return Some(Self {
+                min: v,
+                max: Some(PhpVersion { major: v.major + 1, minor: 0 }),
+            });
+        }
 
-        Self::parse(version_str)
+        // Caret: ^X.Y → same major (for X > 0)
+        if s.starts_with('^') {
+            let v = PhpVersion::parse(s.trim_start_matches('^').trim())?;
+            if v.major == 0 {
+                // ^0.3 → >=0.3.0 <0.4.0
+                return Some(Self {
+                    min: v,
+                    max: Some(PhpVersion { major: 0, minor: v.minor + 1 }),
+                });
+            }
+            // ^8.4 → >=8.4.0 <9.0.0
+            return Some(Self {
+                min: v,
+                max: Some(PhpVersion { major: v.major + 1, minor: 0 }),
+            });
+        }
+
+        // >= open-ended
+        if s.starts_with(">=") {
+            let v = PhpVersion::parse(s.trim_start_matches(">=").trim())?;
+            return Some(Self { min: v, max: None });
+        }
+
+        // > exclusive lower bound
+        if s.starts_with('>') {
+            let v = PhpVersion::parse(s.trim_start_matches('>').trim())?;
+            return Some(Self {
+                min: PhpVersion { major: v.major, minor: v.minor + 1 },
+                max: None,
+            });
+        }
+
+        // Plain version: exact match
+        let v = PhpVersion::parse(s)?;
+        Some(Self::exact(v))
     }
 
-    /// Find the lowest installed version that satisfies the constraint.
-    pub fn resolve(constraint: &str, installed: &[PhpVersion]) -> Option<PhpVersion> {
-        let target = Self::from_constraint(constraint)?;
+    /// Check if a version satisfies this constraint.
+    pub fn satisfies(&self, version: PhpVersion) -> bool {
+        version >= self.min && self.max.map_or(true, |max| version < max)
+    }
 
+    /// Find the lowest installed version that satisfies this constraint.
+    pub fn resolve(&self, installed: &[PhpVersion]) -> Option<PhpVersion> {
         installed
             .iter()
-            .filter(|v| **v >= target)
+            .filter(|v| self.satisfies(**v))
             .min()
             .copied()
     }
-}
 
-impl fmt::Display for PhpVersion {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}", self.major, self.minor)
+    /// The minimum version of this constraint (used for install suggestions).
+    pub fn target(&self) -> PhpVersion {
+        self.min
     }
 }
 
@@ -115,25 +196,30 @@ mod tests {
 
     #[test]
     fn test_constraints() {
+        // >=8.2 → open-ended
         assert_eq!(
-            PhpVersion::from_constraint(">=8.2"),
-            Some(PhpVersion::new(8, 2))
+            VersionConstraint::from_constraint(">=8.2"),
+            Some(VersionConstraint { min: PhpVersion::new(8, 2), max: None })
         );
+        // ^8.2 → 8.2–8.x (max 9.0)
         assert_eq!(
-            PhpVersion::from_constraint("^8.2"),
-            Some(PhpVersion::new(8, 2))
+            VersionConstraint::from_constraint("^8.2"),
+            Some(VersionConstraint { min: PhpVersion::new(8, 2), max: Some(PhpVersion::new(9, 0)) })
         );
+        // ~8.2 → 8.2–8.x (max 9.0)
         assert_eq!(
-            PhpVersion::from_constraint("~8.2"),
-            Some(PhpVersion::new(8, 2))
+            VersionConstraint::from_constraint("~8.2"),
+            Some(VersionConstraint { min: PhpVersion::new(8, 2), max: Some(PhpVersion::new(9, 0)) })
         );
+        // 8.2.* → exact 8.2
         assert_eq!(
-            PhpVersion::from_constraint("8.2.*"),
-            Some(PhpVersion::new(8, 2))
+            VersionConstraint::from_constraint("8.2.*"),
+            Some(VersionConstraint::exact(PhpVersion::new(8, 2)))
         );
+        // ~8.2.0 → exact 8.2
         assert_eq!(
-            PhpVersion::from_constraint("~8.2.0"),
-            Some(PhpVersion::new(8, 2))
+            VersionConstraint::from_constraint("~8.2.0"),
+            Some(VersionConstraint::exact(PhpVersion::new(8, 2)))
         );
     }
 
@@ -141,11 +227,11 @@ mod tests {
     fn test_or_constraints() {
         // Should pick highest group
         assert_eq!(
-            PhpVersion::from_constraint("^7.4 || ^8.0"),
+            VersionConstraint::from_constraint("^7.4 || ^8.0").map(|c| c.min),
             Some(PhpVersion::new(8, 0))
         );
         assert_eq!(
-            PhpVersion::from_constraint("^7.4|^8.0"),
+            VersionConstraint::from_constraint("^7.4|^8.0").map(|c| c.min),
             Some(PhpVersion::new(8, 0))
         );
     }
@@ -160,19 +246,60 @@ mod tests {
             PhpVersion::new(8, 5),
         ];
 
-        // >=8.2 should resolve to 8.2 (lowest matching)
+        // >=8.2 → 8.2 (lowest matching, open-ended)
         assert_eq!(
-            PhpVersion::resolve(">=8.2", &installed),
+            VersionConstraint::from_constraint(">=8.2").unwrap().resolve(&installed),
             Some(PhpVersion::new(8, 2))
         );
 
-        // ^8.1 should resolve to 8.1
+        // ^8.1 → 8.1
         assert_eq!(
-            PhpVersion::resolve("^8.1", &installed),
+            VersionConstraint::from_constraint("^8.1").unwrap().resolve(&installed),
             Some(PhpVersion::new(8, 1))
         );
 
-        // >=9.0 should resolve to None
-        assert_eq!(PhpVersion::resolve(">=9.0", &installed), None);
+        // >=9.0 → None
+        assert_eq!(
+            VersionConstraint::from_constraint(">=9.0").unwrap().resolve(&installed),
+            None
+        );
+
+        // 8.4.* → exactly 8.4
+        assert_eq!(
+            VersionConstraint::from_constraint("8.4.*").unwrap().resolve(&installed),
+            Some(PhpVersion::new(8, 4))
+        );
+    }
+
+    #[test]
+    fn test_wildcard_no_fallback() {
+        // Bug: 8.4.* was resolving to 8.5 when 8.4 not installed
+        let installed = vec![
+            PhpVersion::new(8, 3),
+            PhpVersion::new(8, 5),
+        ];
+        assert_eq!(
+            VersionConstraint::from_constraint("8.4.*").unwrap().resolve(&installed),
+            None
+        );
+    }
+
+    #[test]
+    fn test_satisfies() {
+        let exact = VersionConstraint::exact(PhpVersion::new(8, 4));
+        assert!(exact.satisfies(PhpVersion::new(8, 4)));
+        assert!(!exact.satisfies(PhpVersion::new(8, 5)));
+        assert!(!exact.satisfies(PhpVersion::new(8, 3)));
+
+        let caret = VersionConstraint::from_constraint("^8.2").unwrap();
+        assert!(caret.satisfies(PhpVersion::new(8, 2)));
+        assert!(caret.satisfies(PhpVersion::new(8, 5)));
+        assert!(!caret.satisfies(PhpVersion::new(9, 0)));
+        assert!(!caret.satisfies(PhpVersion::new(8, 1)));
+
+        let open = VersionConstraint::from_constraint(">=8.2").unwrap();
+        assert!(open.satisfies(PhpVersion::new(8, 2)));
+        assert!(open.satisfies(PhpVersion::new(9, 0)));
+        assert!(!open.satisfies(PhpVersion::new(8, 1)));
     }
 }
