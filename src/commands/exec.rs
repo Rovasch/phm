@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use colored::Colorize;
+use colored_text::Colorize;
 use crate::discover;
 use crate::version::PhpVersion;
 

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use colored::Colorize;
+use colored_text::Colorize;
 use crate::config;
 use crate::discover;
 use crate::version::PhpVersion;
@@ -23,7 +23,7 @@ pub fn run(version: Option<String>) -> Result<()> {
             }
 
             config::set_default(&ver.to_string())?;
-            println!("Default PHP version set to {}", ver.to_string().green().bold());
+            println!("Default PHP version set to {}", ver.to_string().hex("#777BB3").bold());
         }
         None => {
             match config::get_default()? {

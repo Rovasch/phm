@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use colored::Colorize;
+use colored_text::Colorize;
 use crate::config;
 use crate::discover;
 use crate::version::PhpVersion;
@@ -37,7 +37,7 @@ pub fn run(version_str: &str) -> Result<()> {
         .context("failed to run brew uninstall")?;
 
     if status.success() {
-        println!("{} PHP {} uninstalled", "done:".green().bold(), version);
+        println!("{} PHP {} uninstalled", "done:".hex("#777BB3").bold(), version);
     } else {
         anyhow::bail!("brew uninstall {} failed", formula);
     }

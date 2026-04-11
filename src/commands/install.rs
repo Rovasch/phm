@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use colored::Colorize;
+use colored_text::Colorize;
 use crate::version::PhpVersion;
 
 pub fn run(version_str: &str) -> Result<()> {
@@ -9,7 +9,7 @@ pub fn run(version_str: &str) -> Result<()> {
     // Check if already installed
     let installations = crate::discover::discover_versions()?;
     if installations.iter().any(|i| i.version == version) {
-        println!("PHP {} is already installed", version.to_string().green().bold());
+        println!("PHP {} is already installed", version.to_string().hex("#777BB3").bold());
         return Ok(());
     }
 
@@ -41,7 +41,7 @@ pub fn run(version_str: &str) -> Result<()> {
         .context("failed to run brew install")?;
 
     if status.success() {
-        println!("{} PHP {} installed", "done:".green().bold(), version);
+        println!("{} PHP {} installed", "done:".hex("#777BB3").bold(), version);
     } else {
         anyhow::bail!("brew install {} failed", formula);
     }

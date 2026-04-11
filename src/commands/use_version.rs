@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 use anyhow::{bail, Result};
-use colored::Colorize;
+use colored_text::Colorize;
 use crate::composer;
 use crate::config;
 use crate::discover;
@@ -61,7 +61,7 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
     match resolved.and_then(|v| installations.iter().find(|i| i.version == v)) {
         Some(inst) => {
             multishell::link_version(&ms_path, inst)?;
-            println!("Using {}", format!("PHP {}", inst.version).green().bold());
+            println!("Using {}", format!("PHP {}", inst.version).hex("#777BB3").bold());
         }
         None => {
             let target = constraint.target();
@@ -71,7 +71,7 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
                 print!(
                     "PHP {} is not installed. Do you want to install it? {} ",
                     target.to_string().bold(),
-                    "[y/N]".dimmed()
+                    "[y/N]".dim()
                 );
                 io::stdout().flush()?;
 
@@ -87,7 +87,7 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
                     if let Some(v) = constraint.resolve(&new_versions) {
                         if let Some(inst) = new_installations.iter().find(|i| i.version == v) {
                             multishell::link_version(&ms_path, inst)?;
-                            println!("Using {}", format!("PHP {}", inst.version).green().bold());
+                            println!("Using {}", format!("PHP {}", inst.version).hex("#777BB3").bold());
                         }
                     }
                 }

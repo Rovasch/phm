@@ -1,5 +1,5 @@
 use anyhow::Result;
-use colored::Colorize;
+use colored_text::Colorize;
 use crate::config;
 use crate::discover;
 use crate::multishell;
@@ -16,7 +16,7 @@ pub fn run() -> Result<()> {
     } else {
         println!(
             "{} {} PHP version(s) found: {}",
-            "✓".green(),
+            "✓".hex("#777BB3"),
             installations.len(),
             installations
                 .iter()
@@ -30,7 +30,7 @@ pub fn run() -> Result<()> {
     match config::get_default()? {
         Some(ver) => {
             if installations.iter().any(|i| i.version.to_string() == ver) {
-                println!("{} Default version: {}", "✓".green(), ver);
+                println!("{} Default version: {}", "✓".hex("#777BB3"), ver);
             } else {
                 println!(
                     "{} Default version {} is not installed",
@@ -51,7 +51,7 @@ pub fn run() -> Result<()> {
     match std::env::var("PHM_MULTISHELL_PATH") {
         Ok(path) => {
             if std::path::Path::new(&path).exists() {
-                println!("{} Shell integration active", "✓".green());
+                println!("{} Shell integration active", "✓".hex("#777BB3"));
             } else {
                 println!("{} PHM_MULTISHELL_PATH set but directory missing", "✗".red());
                 issues += 1;
@@ -71,7 +71,7 @@ pub fn run() -> Result<()> {
         println!("  Remove from .zshrc: export PATH=\".../Herd/bin/:$PATH\"");
         issues += 1;
     } else {
-        println!("{} No Herd conflict", "✓".green());
+        println!("{} No Herd conflict", "✓".hex("#777BB3"));
     }
 
     // Check: composer available
@@ -80,7 +80,7 @@ pub fn run() -> Result<()> {
         .output();
     match composer_check {
         Ok(output) if output.status.success() => {
-            println!("{} Composer found", "✓".green());
+            println!("{} Composer found", "✓".hex("#777BB3"));
         }
         _ => {
             println!("{} Composer not found", "✗".red());
@@ -115,13 +115,13 @@ pub fn run() -> Result<()> {
                 stale
             );
         } else {
-            println!("{} No stale multishell directories", "✓".green());
+            println!("{} No stale multishell directories", "✓".hex("#777BB3"));
         }
     }
 
     println!();
     if issues == 0 {
-        println!("{}", "All checks passed!".green().bold());
+        println!("{}", "All checks passed!".hex("#777BB3").bold());
     } else {
         println!(
             "{} issue(s) found",

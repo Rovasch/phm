@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1] - 2026-04-12
+
+### Changed
+
+- Change green text to PHP brand color
+
 ## [0.2.0] - 2026-04-11
 
 ### Added

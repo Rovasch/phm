@@ -1,5 +1,5 @@
 use anyhow::Result;
-use colored::Colorize;
+use colored_text::Colorize;
 use crate::config;
 use crate::discover;
 use crate::multishell;
@@ -24,7 +24,7 @@ pub fn run() -> Result<()> {
 
         let marker = if is_current { "*" } else { " " };
         let ver_display = if is_current {
-            ver_str.green().bold().to_string()
+            ver_str.hex("#777BB3").bold().to_string()
         } else {
             ver_str.clone()
         };
@@ -43,7 +43,7 @@ pub fn run() -> Result<()> {
             format!(" ({})", tags.join(", "))
         };
 
-        println!("{} {}{}", marker, ver_display, tag_str.dimmed());
+        println!("{} {}{}", marker, ver_display, tag_str.dim());
     }
 
     Ok(())
