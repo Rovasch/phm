@@ -30,7 +30,7 @@ export PHM_MULTISHELL_PATH="{ms_path}"
         out.push_str(
             r#"autoload -U add-zsh-hook
 _phm_autoload_hook() {
-  phm use --silent-if-unchanged 2>/dev/null
+  phm use --silent-if-unchanged
   rehash
 }
 add-zsh-hook chpwd _phm_autoload_hook
@@ -54,7 +54,7 @@ export PHM_MULTISHELL_PATH="{ms_path}"
         out.push_str(
             r#"__phm_cd() {
   \builtin cd "$@" || return
-  phm use --silent-if-unchanged 2>/dev/null
+  phm use --silent-if-unchanged
   hash -r
 }
 alias cd=__phm_cd
@@ -77,7 +77,7 @@ set -gx PHM_MULTISHELL_PATH "{ms_path}"
     if use_on_cd {
         out.push_str(
             r#"function _phm_autoload --on-variable PWD
-  phm use --silent-if-unchanged 2>/dev/null
+  phm use --silent-if-unchanged
 end
 _phm_autoload
 "#,

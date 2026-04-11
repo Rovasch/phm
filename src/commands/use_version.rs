@@ -1,3 +1,4 @@
+use std::io::{self, Write};
 use anyhow::{bail, Result};
 use colored::Colorize;
 use crate::composer;
@@ -63,12 +64,39 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
             println!("Using {}", format!("PHP {}", inst.version).green().bold());
         }
         None => {
-            if !silent_if_unchanged {
-                eprintln!(
+            let target = constraint.target();
+
+            // Prompt to install if running in an interactive terminal
+            if atty::is(atty::Stream::Stdin) {
+                print!(
+                    "PHP {} is not installed. Do you want to install it? {} ",
+                    target.to_string().bold(),
+                    "[y/N]".dimmed()
+                );
+                io::stdout().flush()?;
+
+                let mut answer = String::new();
+                io::stdin().read_line(&mut answer)?;
+
+                if answer.trim().eq_ignore_ascii_case("y") {
+                    super::install::run(&target.to_string())?;
+
+                    // Switch to the newly installed version
+                    let new_installations = discover::discover_versions()?;
+                    let new_versions: Vec<_> = new_installations.iter().map(|i| i.version).collect();
+                    if let Some(v) = constraint.resolve(&new_versions) {
+                        if let Some(inst) = new_installations.iter().find(|i| i.version == v) {
+                            multishell::link_version(&ms_path, inst)?;
+                            println!("Using {}", format!("PHP {}", inst.version).green().bold());
+                        }
+                    }
+                }
+            } else {
+                println!(
                     "{} PHP {} is not installed. Run: {}",
-                    "error:".red().bold(),
-                    constraint.target(),
-                    format!("phm install {}", constraint.target()).cyan()
+                    "warning:".yellow().bold(),
+                    target,
+                    format!("phm install {}", target).cyan()
                 );
             }
         }

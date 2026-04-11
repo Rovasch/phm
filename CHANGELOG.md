@@ -1,6 +1,11 @@
 # Changelog
 
-## [0.1.2] - 2026-04-11
+## [0.2.0] - 2026-04-11
+
+### Added
+
+- Interactive install prompt: when a required PHP version is missing, phm asks to install it (like fnm)
+- Shell hooks now run without stderr suppression so prompts work interactively
 
 ### Fixed
 
