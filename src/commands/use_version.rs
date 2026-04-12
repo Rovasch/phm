@@ -46,25 +46,23 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
         }
     };
 
-    // Fast path: current version already satisfies constraint
-    if let Some(ref current_str) = current
-        && let Some(current_ver) = PhpVersion::parse(current_str)
-        && constraint.satisfies(current_ver)
+    // Find the best installed version satisfying the constraint
+    let installations = discover::discover_versions()?;
+    let versions: Vec<PhpVersion> = installations.iter().map(|i| i.version).collect();
+    let resolved = constraint.resolve(&versions);
+
+    // Fast path: current version already matches the resolved target.
+    if let Some(target) = resolved
+        && current_matches_target(current.as_deref(), target)
     {
         if version.is_some() {
             println!(
                 "Already using {}",
-                format!("PHP {}", current_ver).hex("#777BB3").bold()
+                format!("PHP {}", target).hex("#777BB3").bold()
             );
         }
         return Ok(());
     }
-
-    // Find the best installed version satisfying the constraint
-    let installations = discover::discover_versions()?;
-    let versions: Vec<PhpVersion> = installations.iter().map(|i| i.version).collect();
-
-    let resolved = constraint.resolve(&versions);
 
     match resolved.and_then(|v| installations.iter().find(|i| i.version == v)) {
         Some(inst) => {
@@ -123,4 +121,39 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn current_matches_target(current: Option<&str>, target: PhpVersion) -> bool {
+    current.and_then(PhpVersion::parse) == Some(target)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn current_only_matches_when_it_equals_the_resolved_target() {
+        let target = PhpVersion::new(8, 2);
+
+        assert!(current_matches_target(Some("8.2"), target));
+        assert!(!current_matches_target(Some("8.5"), target));
+        assert!(!current_matches_target(None, target));
+    }
+
+    #[test]
+    fn open_ended_constraints_still_resolve_to_the_lowest_matching_version() {
+        let installed = vec![
+            PhpVersion::new(8, 2),
+            PhpVersion::new(8, 4),
+            PhpVersion::new(8, 5),
+        ];
+
+        let resolved = VersionConstraint::from_constraint(">=8.2")
+            .unwrap()
+            .resolve(&installed)
+            .unwrap();
+
+        assert_eq!(resolved, PhpVersion::new(8, 2));
+        assert!(!current_matches_target(Some("8.5"), resolved));
+    }
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3] - 2026-04-12
+
+### Fixed
+
+- `phm use` now always switches to the resolved lowest installed version for standard Composer constraints like `>=8.2`, instead of staying on any already-satisfying higher version
+- Added regression coverage for the resolved-target fast path so open-ended constraints continue to pick the exact version phm intends to use
+
 ## [0.2.2] - 2026-04-12
 
 ### Fixed
