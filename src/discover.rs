@@ -1,6 +1,8 @@
-use std::path::{Path, PathBuf};
-use anyhow::Result;
 use crate::version::PhpVersion;
+use anyhow::Result;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[derive(Debug, Clone)]
 pub struct PhpInstallation {
@@ -8,44 +10,77 @@ pub struct PhpInstallation {
     pub bin_dir: PathBuf,
 }
 
-/// Discover all installed PHP versions from Homebrew.
-pub fn discover_versions() -> Result<Vec<PhpInstallation>> {
-    let homebrew_opt = Path::new("/opt/homebrew/opt");
-    let mut installations = Vec::new();
+pub fn homebrew_prefixes() -> Vec<PathBuf> {
+    let mut prefixes = Vec::new();
+    let mut seen = HashSet::new();
 
-    if !homebrew_opt.exists() {
-        return Ok(installations);
+    if let Some(prefix) = std::env::var_os("HOMEBREW_PREFIX") {
+        let path = PathBuf::from(prefix);
+        if seen.insert(path.clone()) {
+            prefixes.push(path);
+        }
     }
 
-    let entries = std::fs::read_dir(homebrew_opt)?;
-
-    for entry in entries.flatten() {
-        let name = entry.file_name();
-        let name_str = name.to_string_lossy();
-
-        // Match "php@X.Y" directories
-        if let Some(version_str) = name_str.strip_prefix("php@") {
-            if let Some(version) = PhpVersion::parse(version_str) {
-                let bin_dir = entry.path().join("bin");
-                if bin_dir.join("php").exists() {
-                    installations.push(PhpInstallation {
-                        version,
-                        bin_dir,
-                    });
-                }
+    if let Ok(output) = Command::new("brew").arg("--prefix").output()
+        && output.status.success()
+    {
+        let prefix = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !prefix.is_empty() {
+            let path = PathBuf::from(prefix);
+            if seen.insert(path.clone()) {
+                prefixes.push(path);
             }
         }
-        // Match bare "php" directory (latest version)
-        else if name_str == "php" {
-            let bin_dir = entry.path().join("bin");
-            if bin_dir.join("php").exists() {
-                // Get the actual version by checking if it's a symlink to a Cellar path
-                if let Some(version) = detect_bare_php_version(&entry.path()) {
-                    // Only add if we don't already have this version via php@X.Y
-                    installations.push(PhpInstallation {
-                        version,
-                        bin_dir,
-                    });
+    }
+
+    for prefix in ["/opt/homebrew", "/usr/local"] {
+        let path = PathBuf::from(prefix);
+        if seen.insert(path.clone()) {
+            prefixes.push(path);
+        }
+    }
+
+    prefixes
+}
+
+pub fn homebrew_opt_dirs() -> Vec<PathBuf> {
+    homebrew_prefixes()
+        .into_iter()
+        .map(|prefix| prefix.join("opt"))
+        .collect()
+}
+
+/// Discover all installed PHP versions from Homebrew.
+pub fn discover_versions() -> Result<Vec<PhpInstallation>> {
+    let mut installations = Vec::new();
+
+    for homebrew_opt in homebrew_opt_dirs() {
+        if !homebrew_opt.exists() {
+            continue;
+        }
+
+        let entries = std::fs::read_dir(&homebrew_opt)?;
+
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+
+            // Match "php@X.Y" directories
+            if let Some(version_str) = name_str.strip_prefix("php@") {
+                if let Some(version) = PhpVersion::parse(version_str) {
+                    let bin_dir = entry.path().join("bin");
+                    if bin_dir.join("php").exists() {
+                        installations.push(PhpInstallation { version, bin_dir });
+                    }
+                }
+            }
+            // Match bare "php" directory (latest version)
+            else if name_str == "php" {
+                let bin_dir = entry.path().join("bin");
+                if bin_dir.join("php").exists()
+                    && let Some(version) = detect_bare_php_version(&entry.path())
+                {
+                    installations.push(PhpInstallation { version, bin_dir });
                 }
             }
         }
@@ -72,14 +107,15 @@ fn detect_bare_php_version(php_opt_path: &Path) -> Option<PhpVersion> {
 /// Check if a path is the bare "php" formula (not "php@X.Y").
 fn is_bare_php(bin_dir: &Path) -> bool {
     // /opt/homebrew/opt/php/bin -> parent is /opt/homebrew/opt/php -> file_name is "php"
-    bin_dir.parent()
+    bin_dir
+        .parent()
         .and_then(|p| p.file_name())
         .is_some_and(|name| name == "php")
 }
 
 /// Remove duplicates, preferring versioned formula (php@X.Y) over bare (php).
 fn deduplicate(installations: &mut Vec<PhpInstallation>) {
-    let versioned: std::collections::HashSet<PhpVersion> = installations
+    let versioned: HashSet<PhpVersion> = installations
         .iter()
         .filter(|i| !is_bare_php(&i.bin_dir))
         .map(|i| i.version)
@@ -93,4 +129,3 @@ fn deduplicate(installations: &mut Vec<PhpInstallation>) {
         }
     });
 }
-

@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::multishell;
+use anyhow::Result;
 
 pub fn run() -> Result<()> {
     let ms_path = std::env::var("PHM_MULTISHELL_PATH")

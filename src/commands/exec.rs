@@ -1,7 +1,7 @@
-use anyhow::{bail, Result};
-use colored_text::Colorize;
 use crate::discover;
 use crate::version::PhpVersion;
+use anyhow::{Result, bail};
+use colored_text::Colorize;
 
 pub fn run(version_str: &str, command: &[String]) -> Result<()> {
     let version = PhpVersion::parse(version_str)

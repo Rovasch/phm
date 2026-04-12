@@ -1,11 +1,11 @@
-use std::io::{self, Write};
-use anyhow::{bail, Result};
-use colored_text::Colorize;
 use crate::composer;
 use crate::config;
 use crate::discover;
 use crate::multishell;
 use crate::version::{PhpVersion, VersionConstraint};
+use anyhow::{Result, bail};
+use colored_text::Colorize;
+use std::io::{self, Write};
 
 pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
     let ms_path = std::env::var("PHM_MULTISHELL_PATH")
@@ -28,15 +28,18 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
                 // Fall back to default
                 match config::get_default()? {
                     Some(ver_str) => {
-                        let v = PhpVersion::parse(&ver_str)
-                            .ok_or_else(|| anyhow::anyhow!("invalid default version: {}", ver_str))?;
+                        let v = PhpVersion::parse(&ver_str).ok_or_else(|| {
+                            anyhow::anyhow!("invalid default version: {}", ver_str)
+                        })?;
                         VersionConstraint::exact(v)
                     }
                     None => {
                         if silent_if_unchanged {
                             return Ok(());
                         }
-                        bail!("no PHP version specified and no default set. Run: phm default <version>");
+                        bail!(
+                            "no PHP version specified and no default set. Run: phm default <version>"
+                        );
                     }
                 }
             }
@@ -44,12 +47,17 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
     };
 
     // Fast path: current version already satisfies constraint
-    if let Some(ref current_str) = current {
-        if let Some(current_ver) = PhpVersion::parse(current_str) {
-            if constraint.satisfies(current_ver) {
-                return Ok(());
-            }
+    if let Some(ref current_str) = current
+        && let Some(current_ver) = PhpVersion::parse(current_str)
+        && constraint.satisfies(current_ver)
+    {
+        if version.is_some() {
+            println!(
+                "Already using {}",
+                format!("PHP {}", current_ver).hex("#777BB3").bold()
+            );
         }
+        return Ok(());
     }
 
     // Find the best installed version satisfying the constraint
@@ -61,7 +69,10 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
     match resolved.and_then(|v| installations.iter().find(|i| i.version == v)) {
         Some(inst) => {
             multishell::link_version(&ms_path, inst)?;
-            println!("Using {}", format!("PHP {}", inst.version).hex("#777BB3").bold());
+            println!(
+                "Using {}",
+                format!("PHP {}", inst.version).hex("#777BB3").bold()
+            );
         }
         None => {
             let target = constraint.target();
@@ -83,12 +94,21 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool) -> Result<()> {
 
                     // Switch to the newly installed version
                     let new_installations = discover::discover_versions()?;
-                    let new_versions: Vec<_> = new_installations.iter().map(|i| i.version).collect();
-                    if let Some(v) = constraint.resolve(&new_versions) {
-                        if let Some(inst) = new_installations.iter().find(|i| i.version == v) {
-                            multishell::link_version(&ms_path, inst)?;
-                            println!("Using {}", format!("PHP {}", inst.version).hex("#777BB3").bold());
-                        }
+                    let new_versions: Vec<_> =
+                        new_installations.iter().map(|i| i.version).collect();
+                    if let Some(v) = constraint.resolve(&new_versions)
+                        && let Some(inst) = new_installations.iter().find(|i| i.version == v)
+                    {
+                        multishell::link_version(&ms_path, inst)?;
+                        println!(
+                            "Using {}",
+                            format!("PHP {}", inst.version).hex("#777BB3").bold()
+                        );
+                    } else {
+                        bail!(
+                            "PHP {} was installed but could not be resolved afterwards. Run: phm doctor",
+                            target
+                        );
                     }
                 }
             } else {

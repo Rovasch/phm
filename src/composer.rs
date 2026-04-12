@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use std::path::Path;
+use crate::version::{PhpVersion, VersionConstraint};
 use anyhow::Result;
 use serde::Deserialize;
-use crate::version::{PhpVersion, VersionConstraint};
+use std::collections::HashMap;
+use std::path::Path;
 
 #[derive(Deserialize)]
 struct ComposerJson {
@@ -26,10 +26,10 @@ pub fn find_version(start_dir: &Path) -> Result<Option<VersionConstraint>> {
 
         // Check composer.json
         let composer_file = current.join("composer.json");
-        if composer_file.exists() {
-            if let Some(constraint) = parse_composer_json(&composer_file)? {
-                return Ok(Some(constraint));
-            }
+        if composer_file.exists()
+            && let Some(constraint) = parse_composer_json(&composer_file)?
+        {
+            return Ok(Some(constraint));
         }
 
         // Move to parent directory
@@ -48,10 +48,10 @@ fn parse_composer_json(path: &Path) -> Result<Option<VersionConstraint>> {
         Err(_) => return Ok(None),
     };
 
-    if let Some(require) = composer.require {
-        if let Some(php_constraint) = require.get("php") {
-            return Ok(VersionConstraint::from_constraint(php_constraint));
-        }
+    if let Some(require) = composer.require
+        && let Some(php_constraint) = require.get("php")
+    {
+        return Ok(VersionConstraint::from_constraint(php_constraint));
     }
 
     Ok(None)

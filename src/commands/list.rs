@@ -1,8 +1,8 @@
-use anyhow::Result;
-use colored_text::Colorize;
 use crate::config;
 use crate::discover;
 use crate::multishell;
+use anyhow::Result;
+use colored_text::Colorize;
 
 pub fn run() -> Result<()> {
     let installations = discover::discover_versions()?;

@@ -17,7 +17,7 @@ Or build from source:
 git clone https://github.com/Rovasch/phm.git
 cd phm
 cargo build --release
-cp target/release/phm /opt/homebrew/bin/phm
+cp target/release/phm "$(brew --prefix)/bin/phm"
 ```
 
 ## Setup
@@ -53,9 +53,9 @@ When your shell starts, `phm env` creates a per-shell directory with symlinks po
 
 ```
 ~/.local/state/phm/multishells/<shell-id>/bin/
-  php       -> /opt/homebrew/opt/php@8.4/bin/php
-  phpize    -> /opt/homebrew/opt/php@8.4/bin/phpize
-  pecl      -> /opt/homebrew/opt/php@8.4/bin/pecl
+  php       -> $(brew --prefix)/opt/php@8.4/bin/php
+  phpize    -> $(brew --prefix)/opt/php@8.4/bin/phpize
+  pecl      -> $(brew --prefix)/opt/php@8.4/bin/pecl
   ...
 ```
 
@@ -154,7 +154,7 @@ Print the resolved path to the active `php` binary. Useful for IDE configuration
 
 ```
 $ phm which
-/opt/homebrew/opt/php@8.2/bin/php
+$(brew --prefix)/opt/php@8.2/bin/php
 ```
 
 ### `phm doctor`
@@ -182,7 +182,7 @@ Generate shell completions.
 eval "$(phm completions zsh)"
 
 # Bash
-phm completions bash > /opt/homebrew/etc/bash_completion.d/phm
+phm completions bash > "$(brew --prefix)/etc/bash_completion.d/phm"
 
 # Fish
 phm completions fish > ~/.config/fish/completions/phm.fish

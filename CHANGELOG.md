@@ -1,10 +1,24 @@
 # Changelog
 
+## [0.2.2] - 2026-04-12
+
+### Fixed
+
+- Homebrew PHP discovery now works across both `/opt/homebrew` and `/usr/local`, instead of assuming Apple Silicon paths only
+- `phm use` now reports already-active explicit version requests and fails clearly if a freshly installed version still cannot be resolved
+- `phm uninstall` now targets legacy `shivammathur/php` formula names for older PHP releases and verifies that the version disappears afterwards
+
+### Changed
+
+- Install and uninstall flows now show staged status output and check that Homebrew is actually available before running brew commands
+- Doctor output now reports detected Homebrew opt directories and no longer relies on panic-prone home directory handling
+- Documentation examples now use `brew --prefix` instead of hardcoded `/opt/homebrew` paths
+
 ## [0.2.1] - 2026-04-12
 
 ### Changed
 
-- Change green text to PHP brand color
+- Changed green text to PHP brand color
 
 ## [0.2.0] - 2026-04-11
 

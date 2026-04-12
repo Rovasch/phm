@@ -1,8 +1,8 @@
-use anyhow::Result;
-use colored_text::Colorize;
 use crate::config;
 use crate::discover;
 use crate::version::PhpVersion;
+use anyhow::Result;
+use colored_text::Colorize;
 
 pub fn run(version: Option<String>) -> Result<()> {
     match version {
@@ -23,14 +23,15 @@ pub fn run(version: Option<String>) -> Result<()> {
             }
 
             config::set_default(&ver.to_string())?;
-            println!("Default PHP version set to {}", ver.to_string().hex("#777BB3").bold());
+            println!(
+                "Default PHP version set to {}",
+                ver.to_string().hex("#777BB3").bold()
+            );
         }
-        None => {
-            match config::get_default()? {
-                Some(ver) => println!("{}", ver),
-                None => eprintln!("No default version set. Run: phm default <version>"),
-            }
-        }
+        None => match config::get_default()? {
+            Some(ver) => println!("{}", ver),
+            None => eprintln!("No default version set. Run: phm default <version>"),
+        },
     }
 
     Ok(())

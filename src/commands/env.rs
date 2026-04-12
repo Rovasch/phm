@@ -1,9 +1,9 @@
-use anyhow::Result;
 use crate::config;
 use crate::discover;
 use crate::multishell;
 use crate::shell::ShellKind;
 use crate::version::PhpVersion;
+use anyhow::Result;
 
 pub fn run(shell: ShellKind, use_on_cd: bool) -> Result<()> {
     // Get the parent shell's PID
