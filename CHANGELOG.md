@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.4] - 2026-04-14
+
+### Added
+
+- `phm env --silent` now exports a session-scoped silent mode for users who already show PHP version information in their shell prompt
+- `phm use --silent` suppresses success output for one-off invocations without hiding prompts, warnings, or errors
+
+### Changed
+
+- `PHM_SILENT=1` now makes both auto-switching and manual `phm use` calls stay quiet within that shell session
+
 ## [0.2.3] - 2026-04-12
 
 ### Fixed

@@ -5,7 +5,7 @@ use crate::shell::ShellKind;
 use crate::version::PhpVersion;
 use anyhow::Result;
 
-pub fn run(shell: ShellKind, use_on_cd: bool) -> Result<()> {
+pub fn run(shell: ShellKind, use_on_cd: bool, silent: bool) -> Result<()> {
     // Get the parent shell's PID
     let ppid = std::os::unix::process::parent_id();
 
@@ -42,7 +42,7 @@ pub fn run(shell: ShellKind, use_on_cd: bool) -> Result<()> {
     multishell::cleanup_stale();
 
     // Output shell initialization code
-    let output = crate::shell::generate_env(shell, &ms_path, use_on_cd);
+    let output = crate::shell::generate_env(shell, &ms_path, use_on_cd, silent);
     print!("{}", output);
 
     Ok(())

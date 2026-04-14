@@ -28,6 +28,10 @@ enum Commands {
         /// Hook into cd to auto-switch PHP versions
         #[arg(long)]
         use_on_cd: bool,
+
+        /// Export PHM_SILENT=1 for this shell session
+        #[arg(long)]
+        silent: bool,
     },
 
     /// Switch the current shell's PHP version
@@ -38,6 +42,10 @@ enum Commands {
         /// Suppress output when the version doesn't change
         #[arg(long)]
         silent_if_unchanged: bool,
+
+        /// Suppress success output for this invocation
+        #[arg(long)]
+        silent: bool,
     },
 
     /// Set or show the default PHP version
@@ -91,11 +99,16 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Env { shell, use_on_cd } => commands::env::run(shell, use_on_cd),
+        Commands::Env {
+            shell,
+            use_on_cd,
+            silent,
+        } => commands::env::run(shell, use_on_cd, silent),
         Commands::Use {
             version,
             silent_if_unchanged,
-        } => commands::use_version::run(version, silent_if_unchanged),
+            silent,
+        } => commands::use_version::run(version, silent_if_unchanged, silent),
         Commands::Default { version } => commands::default::run(version),
         Commands::List => commands::list::run(),
         Commands::Current => commands::current::run(),

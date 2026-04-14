@@ -29,6 +29,11 @@ Add to your shell config:
 eval "$(phm env --shell zsh --use-on-cd)"
 ```
 
+If your prompt already shows the active PHP version, you can opt into a fully silent session:
+```sh
+eval "$(phm env --shell zsh --use-on-cd --silent)"
+```
+
 **Bash** (`~/.bashrc`):
 ```sh
 eval "$(phm env --shell bash --use-on-cd)"
@@ -84,7 +89,7 @@ The search walks up parent directories, so a `.php-version` at the repo root cov
 | `^7.4 \|\| ^8.0` | 8.0 |
 | `8.2.*` | 8.2 |
 
-When the version doesn't change between directories, phm exits silently with no overhead.
+When the version doesn't change between directories, phm exits silently with no overhead. If you enabled `phm env --silent`, phm also suppresses successful switch messages for that shell session while still showing warnings, prompts, and errors.
 
 ## Commands
 
@@ -95,6 +100,7 @@ Switch the current shell to a specific PHP version. Without a version argument, 
 ```sh
 phm use 8.2          # Switch to PHP 8.2
 phm use              # Auto-detect from project files
+phm use --silent 8.2 # Suppress success output for this invocation
 ```
 
 ### `phm default [version]`
