@@ -1,28 +1,79 @@
 # phm
 
-Fast PHP version manager for macOS, written in Rust. Inspired by [fnm](https://github.com/Schniz/fnm).
+Fast PHP version manager for macOS and Linux, written in Rust. Inspired by [fnm](https://github.com/Schniz/fnm).
 
-phm manages Homebrew-installed PHP versions with **per-shell switching** and **automatic version detection** from `.php-version` files and `composer.json`. Switching is instant — it just repoints symlinks, no process restarts or shims.
+phm manages PHP versions with **per-shell switching** and **automatic version detection** from `.php-version` files and `composer.json`. Switching is instant — it just repoints symlinks, no process restarts or shims.
 
 ## Install
+
+### macOS
 
 ```sh
 brew tap Rovasch/phm
 brew install phm
 ```
 
-Or build from source:
+### Linux / Termux
+
+Download the binary for your architecture from the [latest release](https://github.com/Rovasch/phm/releases/latest):
+
+| Platform | Binary |
+|---|---|
+| Linux x86_64 | `phm-x86_64-unknown-linux-gnu.tar.gz` |
+| Linux ARM64 | `phm-aarch64-unknown-linux-gnu.tar.gz` |
+| Termux (Android ARM64) | `phm-aarch64-unknown-linux-musl.tar.gz` |
+
+```sh
+curl -fsSL https://github.com/Rovasch/phm/releases/latest/download/phm-x86_64-unknown-linux-gnu.tar.gz \
+  | tar xz -C ~/.local/bin
+```
+
+### Via Cargo
+
+```sh
+cargo install phm
+```
+
+### Build from source
 
 ```sh
 git clone https://github.com/Rovasch/phm.git
 cd phm
 cargo build --release
-cp target/release/phm "$(brew --prefix)/bin/phm"
 ```
 
 ## Setup
 
-Add to your shell config:
+Run `phm shim create` — this installs phm into your shell automatically:
+
+```sh
+phm shim create
+```
+
+It detects your current shell and writes to the appropriate config file:
+
+| Shell | Config target | What gets written |
+|---|---|---|
+| Zsh | `~/.zshenv` (or sourced custom file) | Shim `PATH` + `eval "$(phm env --shell zsh --use-on-cd)"` |
+| Bash | `~/.bashrc` (or sourced custom file) | Shim `PATH` + `eval "$(phm env --shell bash --use-on-cd)"` |
+| Fish | `~/.config/fish/conf.d/phm.fish` | Shim `PATH` + `phm env --shell fish --use-on-cd \| source` |
+
+Then open a new terminal session, or reload your config:
+
+```sh
+# Zsh
+source ~/.zshrc
+
+# Bash
+source ~/.bashrc
+
+# Fish (restart terminal, or):
+source ~/.config/fish/conf.d/phm.fish
+```
+
+### Manual setup
+
+If you prefer to configure manually, add to your shell config:
 
 **Zsh** (`~/.zshrc`):
 ```sh
@@ -44,38 +95,81 @@ eval "$(phm env --shell bash --use-on-cd)"
 phm env --shell fish --use-on-cd | source
 ```
 
-Then install PHP versions via Homebrew:
+## Installing PHP versions
+
+### macOS
+
+phm uses Homebrew. Versions 8.x and up use the standard formula; 7.x taps `shivammathur/php`:
 
 ```sh
 phm install 8.4
-phm install 8.2
+phm install 7.4      # taps shivammathur/php automatically
 phm default 8.4
+```
+
+### Linux
+
+phm downloads pre-built static PHP binaries (PHP 8.x) from [static-php-cli](https://github.com/crazywhalecc/static-php-cli):
+
+```sh
+phm install 8.3      # downloads ~7MB static binary, no sudo required
+phm install 8.4
+phm default 8.3
+```
+
+PHP 7.x is not available as a managed install on Linux. Install it via your system package manager, and phm will discover and switch it automatically:
+
+```sh
+# Ubuntu/Debian
+sudo apt install php7.4
+
+# Arch (AUR)
+yay -S php74
+
+# Then phm sees it:
+phm list
+phm use 7.4
+```
+
+To browse available versions:
+
+```sh
+phm list-remote
+```
+
+### Termux (Android)
+
+```sh
+pkg install php        # or a specific version like php8.3
+phm shim create        # sets up shell integration
+phm list               # discovers the installed PHP
 ```
 
 ## How it works
 
-When your shell starts, `phm env` creates a per-shell directory with symlinks pointing to your default PHP version's binaries:
+When your shell starts, `phm env` creates a per-shell directory with symlinks pointing to your active PHP version's binaries:
 
 ```
 ~/.local/state/phm/multishells/<shell-id>/bin/
-  php       -> $(brew --prefix)/opt/php@8.4/bin/php
-  phpize    -> $(brew --prefix)/opt/php@8.4/bin/phpize
-  pecl      -> $(brew --prefix)/opt/php@8.4/bin/pecl
+  php       -> /path/to/php@8.4/bin/php
+  phpize    -> /path/to/php@8.4/bin/phpize
   ...
 ```
 
-This directory is prepended to your `PATH`. Switching versions just repoints the symlinks — there are no shims, no process restarts, and no global state changes.
+This directory is prepended to your `PATH`. Switching versions just repoints the symlinks — no process restarts, no global state changes.
 
 ### Per-shell isolation
 
-Each terminal session gets its own symlink directory. Running `phm use 8.2` in one terminal does not affect other terminals. This means you can work on two projects requiring different PHP versions simultaneously.
+Each terminal session gets its own symlink directory. Running `phm use 8.2` in one terminal does not affect other terminals. Work on two projects requiring different PHP versions simultaneously.
 
 ### Automatic version switching
 
-With `--use-on-cd`, phm hooks into your shell's directory change event. When you `cd` into a project, it looks for:
+With `--use-on-cd`, phm hooks into your shell's directory change event. When you `cd` into a directory containing `composer.json` or `.php-version`, phm switches automatically.
 
-1. **`.php-version`** — a plain text file containing the version (e.g., `8.2`). Takes priority.
-2. **`composer.json`** — reads the `require.php` constraint and resolves it to the lowest matching installed version.
+Version files checked:
+
+1. **`.php-version`** — plain text file containing the version (e.g., `8.2`). Takes priority.
+2. **`composer.json`** — reads the `require.php` constraint and resolves to the lowest matching installed version.
 
 The search walks up parent directories, so a `.php-version` at the repo root covers all subdirectories.
 
@@ -89,7 +183,7 @@ The search walks up parent directories, so a `.php-version` at the repo root cov
 | `^7.4 \|\| ^8.0` | 8.0 |
 | `8.2.*` | 8.2 |
 
-When the version doesn't change between directories, phm exits silently with no overhead. If you enabled `phm env --silent`, phm also suppresses successful switch messages for that shell session while still showing warnings, prompts, and errors.
+When the version doesn't change between directories, phm exits silently with no overhead.
 
 ## Commands
 
@@ -124,21 +218,39 @@ $ phm list
   8.5
 ```
 
+### `phm list-remote` *(Linux only)*
+
+List PHP versions available to download and install.
+
+```
+$ phm list-remote
+  8.0
+  8.1
+  8.2
+* 8.3 (installed)
+  8.4
+```
+
 ### `phm install <version>`
 
-Install a PHP version via Homebrew. Automatically taps `shivammathur/php` for older versions.
+Install a PHP version.
+
+- **macOS**: uses Homebrew
+- **Linux**: downloads a static binary from static-php-cli (PHP 8.x only)
 
 ```sh
-phm install 8.3      # brew install php@8.3
-phm install 7.4      # brew tap shivammathur/php && brew install ...
+phm install 8.3
+phm install 7.4      # macOS: taps shivammathur/php
+                     # Linux: prints package manager hint
 ```
 
 ### `phm uninstall <version>`
 
-Uninstall a PHP version via Homebrew. Prevents uninstalling the default version.
+Uninstall a phm-managed PHP version. Prevents uninstalling the default version.
+On Linux, system-installed PHP (e.g. from apt/pacman) must be removed via the system package manager.
 
 ```sh
-phm uninstall 7.4
+phm uninstall 8.3
 ```
 
 ### `phm exec <version> -- <command>`
@@ -158,9 +270,12 @@ Print the active PHP version.
 
 Print the resolved path to the active `php` binary. Useful for IDE configuration.
 
-```
-$ phm which
-$(brew --prefix)/opt/php@8.2/bin/php
+### `phm shim create`
+
+Set up shims for non-interactive shells (IDEs, CI, scripts). Writes the shim `PATH` and `eval` line to your shell config automatically.
+
+```sh
+phm shim create
 ```
 
 ### `phm doctor`
@@ -172,7 +287,6 @@ $ phm doctor
 ✓ 3 PHP version(s) found: 7.4, 8.2, 8.5
 ✓ Default version: 8.5
 ✓ Shell integration active
-✓ No Herd conflict
 ✓ Composer found
 ✓ No stale multishell directories
 
@@ -187,8 +301,11 @@ Generate shell completions.
 # Zsh (add to .zshrc)
 eval "$(phm completions zsh)"
 
-# Bash
+# Bash (macOS/Homebrew)
 phm completions bash > "$(brew --prefix)/etc/bash_completion.d/phm"
+
+# Bash (Linux)
+phm completions bash > ~/.local/share/bash-completion/completions/phm
 
 # Fish
 phm completions fish > ~/.config/fish/completions/phm.fish
@@ -202,13 +319,22 @@ phm completions fish > ~/.config/fish/completions/phm.fish
 | Per-shell versions | Yes | No (global) | No (global) |
 | Auto-switch on cd | Yes | No | No |
 | Multi-terminal | Yes | No | No |
+| Linux support | Yes | No | No |
 | Written in | Rust | PHP/Electron | Bash/Ruby |
 
 ## Requirements
 
-- macOS (Apple Silicon or Intel)
+### macOS
+- Apple Silicon or Intel
 - [Homebrew](https://brew.sh)
-- PHP installed via Homebrew (`brew install php@8.2`)
+
+### Linux
+- x86_64 or ARM64
+- No root required for phm-managed versions (PHP 8.x)
+
+### Termux
+- ARM64 Android device
+- Use the `aarch64-unknown-linux-musl` binary
 
 ## License
 

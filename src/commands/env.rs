@@ -17,7 +17,10 @@ pub fn run(shell: ShellKind, use_on_cd: bool, silent: bool) -> Result<()> {
     let installations = discover::discover_versions()?;
 
     if installations.is_empty() {
+        #[cfg(target_os = "macos")]
         eprintln!("phm: no PHP versions found. Install one with: brew install php@8.2");
+        #[cfg(not(target_os = "macos"))]
+        eprintln!("phm: no PHP versions found. Install one with: phm install 8.2");
     } else {
         // Determine which version to link
         let default_ver = config::get_default()?;

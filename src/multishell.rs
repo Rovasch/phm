@@ -38,7 +38,7 @@ pub fn update_default_alias(installation: &PhpInstallation) -> Result<()> {
 pub fn create_multishell(pid: u32) -> Result<PathBuf> {
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_millis();
 
     let id = format!("{}_{}", pid, ts);
@@ -65,10 +65,20 @@ pub fn link_version(multishell_path: &Path, installation: &PhpInstallation) -> R
         std::fs::create_dir_all(&bin_dir)?;
     }
 
+    #[cfg(not(target_os = "macos"))]
+    let proot_args = crate::termux::proot_wrap_args();
+
     for binary in PHP_BINARIES {
         let source = installation.bin_dir.join(binary);
         let target = bin_dir.join(binary);
         if source.exists() {
+            #[cfg(not(target_os = "macos"))]
+            if let Some((ref proot, ref resolv)) = proot_args {
+                install_proot_wrapper(&source, &target, proot, resolv).with_context(|| {
+                    format!("failed to create wrapper for {}", target.display())
+                })?;
+                continue;
+            }
             std::os::unix::fs::symlink(&source, &target).with_context(|| {
                 format!(
                     "failed to symlink {} -> {}",
@@ -95,6 +105,27 @@ pub fn read_current(multishell_path: &Path) -> Option<String> {
         .ok()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn install_proot_wrapper(
+    source: &std::path::Path,
+    target: &std::path::Path,
+    proot: &std::path::Path,
+    resolv: &std::path::Path,
+) -> anyhow::Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    let script = format!(
+        "#!/bin/sh\nexec '{}' -b '{}:/etc/resolv.conf' '{}' \"$@\"\n",
+        proot.display(),
+        resolv.display(),
+        source.display(),
+    );
+    let mut f = std::fs::File::create(target)?;
+    f.write_all(script.as_bytes())?;
+    std::fs::set_permissions(target, std::fs::Permissions::from_mode(0o755))?;
+    Ok(())
 }
 
 pub fn is_process_alive(pid: i32) -> bool {

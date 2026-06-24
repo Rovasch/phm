@@ -7,6 +7,14 @@ pub fn config_dir() -> Result<PathBuf> {
     Ok(home.join(".phm"))
 }
 
+/// Directory where phm stores downloaded PHP versions on Linux.
+/// Follows XDG Base Directory: $XDG_DATA_HOME/phm/php-versions (~/.local/share/phm/php-versions).
+#[cfg(any(target_os = "linux", target_os = "android"))]
+pub fn managed_php_dir() -> Result<PathBuf> {
+    let base = dirs::data_local_dir().context("could not determine XDG data dir")?;
+    Ok(base.join("phm/php-versions"))
+}
+
 /// Ensure the config directory exists.
 pub fn ensure_config_dir() -> Result<PathBuf> {
     let dir = config_dir()?;

@@ -46,7 +46,7 @@ impl VersionConstraint {
             min: version,
             max: Some(PhpVersion {
                 major: version.major,
-                minor: version.minor + 1,
+                minor: version.minor.saturating_add(1),
             }),
         }
     }
@@ -57,11 +57,8 @@ impl VersionConstraint {
 
         // Handle OR constraints: "^7.4 || ^8.0" or "^7.4|^8.0"
         if constraint.contains("||") || constraint.contains('|') {
-            let parts: Vec<&str> = if constraint.contains("||") {
-                constraint.split("||").collect()
-            } else {
-                constraint.split('|').collect()
-            };
+            let sep = if constraint.contains("||") { "||" } else { "|" };
+            let parts: Vec<&str> = constraint.split(sep).collect();
             let mut constraints: Vec<VersionConstraint> = parts
                 .iter()
                 .filter_map(|p| Self::from_single_constraint(p))

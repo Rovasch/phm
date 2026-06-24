@@ -1,7 +1,13 @@
 [package]
 name = "phm"
-version = "0.2.5"
+version = "0.3.0"
 edition = "2024"
+description = "Fast PHP version manager"
+license = "MIT"
+repository = "https://github.com/Rovasch/phm"
+homepage = "https://github.com/Rovasch/phm"
+keywords = ["php", "version-manager", "php-version"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -14,6 +20,11 @@ anyhow = "1"
 thiserror = "2"
 libc = "0.2"
 atty = "0.2.14"
+
+[target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
+reqwest = { version = "0.12", features = ["blocking", "rustls-tls", "json"], default-features = false }
+flate2 = "1"
+tar = "0.4"
 
 [profile.release]
 strip = true

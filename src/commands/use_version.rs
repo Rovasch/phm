@@ -77,6 +77,25 @@ pub fn run(version: Option<String>, silent_if_unchanged: bool, silent: bool) -> 
         None => {
             let target = constraint.target();
 
+            // On Termux, specific minor versions can't be installed — fall back to whatever is installed.
+            #[cfg(target_os = "android")]
+            if !installations.is_empty() {
+                let best = installations.last().unwrap();
+                eprintln!(
+                    "{} PHP {} not available on Termux; using installed PHP {} instead",
+                    "note:".hex("#777BB3").bold(),
+                    target,
+                    best.version
+                );
+                multishell::link_version(&ms_path, best)?;
+                multishell::update_default_alias(best)?;
+                output.print_success(format!(
+                    "Using {}",
+                    format!("PHP {}", best.version).hex("#777BB3").bold()
+                ));
+                return Ok(());
+            }
+
             // Prompt to install if running in an interactive terminal
             if atty::is(atty::Stream::Stdin) {
                 print!(

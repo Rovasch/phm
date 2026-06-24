@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-macos:
     strategy:
       matrix:
         target:
@@ -38,8 +38,63 @@ jobs:
           name: phm-${{ matrix.target }}
           path: phm-${{ matrix.target }}.tar.gz
 
+  build-linux:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            musl: false
+          - target: aarch64-unknown-linux-gnu
+            musl: false
+          - target: aarch64-unknown-linux-musl
+            musl: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (gnu aarch64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Configure cross linker (gnu aarch64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          mkdir -p ~/.cargo
+          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+
+      - name: Install cargo-zigbuild (musl targets)
+        if: matrix.musl
+        run: |
+          pip3 install ziglang
+          cargo install cargo-zigbuild
+
+      - name: Build release binary (standard)
+        if: "!matrix.musl"
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build release binary (musl via zigbuild)
+        if: matrix.musl
+        run: cargo zigbuild --release --target ${{ matrix.target }}
+
+      - name: Package binary
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../phm-${{ matrix.target }}.tar.gz phm
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: phm-${{ matrix.target }}
+          path: phm-${{ matrix.target }}.tar.gz
+
   release:
-    needs: build
+    needs: [build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -52,3 +107,15 @@ jobs:
         with:
           files: phm-*.tar.gz
           generate_release_notes: true
+
+  publish-crate:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Publish to crates.io
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}

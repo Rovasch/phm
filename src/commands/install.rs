@@ -16,6 +16,72 @@ pub fn run(version_str: &str) -> Result<()> {
         return Ok(());
     }
 
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    return run_linux(version);
+
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
+    return run_macos(version);
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn run_linux(version: PhpVersion) -> Result<()> {
+    if version.major < 8 {
+        eprintln!(
+            "{} PHP {} is not available as a managed install on Linux.",
+            "note:".hex("#777BB3").bold(),
+            version
+        );
+        eprintln!(
+            "  Install it via your system package manager, then run {} to discover it.",
+            "phm list".cyan()
+        );
+        eprintln!("  Example (Ubuntu): sudo apt install php{}", version);
+        eprintln!("  Example (Arch):   yay -S php{}{}", version.major, version.minor);
+        return Ok(());
+    }
+
+    println!("{} Fetching available versions...", "[1/3]".dim());
+    let versions = crate::downloader::fetch_versions_for_minor(&version.to_string())
+        .context("failed to fetch available PHP versions")?;
+
+    let exact = versions
+        .last()
+        .ok_or_else(|| anyhow::anyhow!("PHP {} not found in static-php-cli releases", version))?
+        .clone();
+
+    println!(
+        "{} Downloading PHP {} (static binary)...",
+        "[2/3]".dim(),
+        exact.cyan()
+    );
+
+    let dest_dir = crate::config::managed_php_dir()?.join(version.to_string());
+    crate::downloader::download_and_install(&exact, &dest_dir)?;
+
+    println!(
+        "{} {}",
+        "[3/3]".dim(),
+        format!("Verifying PHP {}", version).cyan()
+    );
+    let installations = crate::discover::discover_versions()?;
+    if installations.iter().any(|i| i.version == version) {
+        println!(
+            "{} PHP {} installed",
+            "done:".hex("#777BB3").bold(),
+            version
+        );
+        return Ok(());
+    }
+
+    anyhow::bail!(
+        "installation completed but PHP {} was not discovered. Check {}",
+        version,
+        dest_dir.display()
+    )
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+fn run_macos(version: PhpVersion) -> Result<()> {
     ensure_brew_available()?;
 
     // Determine the brew formula
@@ -73,6 +139,7 @@ pub fn run(version_str: &str) -> Result<()> {
     );
 }
 
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
 fn ensure_brew_available() -> Result<()> {
     let status = std::process::Command::new("brew")
         .arg("--version")

@@ -31,6 +31,56 @@ pub fn run(version_str: &str) -> Result<()> {
         return Ok(());
     }
 
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    return run_linux(version);
+
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
+    return run_macos(version);
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn run_linux(version: PhpVersion) -> Result<()> {
+    let managed_dir = config::managed_php_dir()?.join(version.to_string());
+
+    if !managed_dir.exists() {
+        eprintln!(
+            "{} PHP {} is a system-installed version and cannot be uninstalled by phm.",
+            "error:".red().bold(),
+            version
+        );
+        eprintln!("  Remove it via your system package manager instead.");
+        return Ok(());
+    }
+
+    println!("{} Removing {}", "[1/2]".dim(), managed_dir.display());
+    std::fs::remove_dir_all(&managed_dir)
+        .with_context(|| format!("failed to remove {}", managed_dir.display()))?;
+
+    println!(
+        "{} {}",
+        "[2/2]".dim(),
+        format!("Verifying PHP {} removed", version).cyan()
+    );
+    let installations = discover::discover_versions()?;
+    if installations.iter().any(|i| i.version == version) {
+        eprintln!(
+            "{} PHP {} still discoverable after removal (may be a system install)",
+            "warning:".yellow(),
+            version
+        );
+    } else {
+        println!(
+            "{} PHP {} uninstalled",
+            "done:".hex("#777BB3").bold(),
+            version
+        );
+    }
+
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+fn run_macos(version: PhpVersion) -> Result<()> {
     ensure_brew_available()?;
 
     let formula = if version.major <= 7 {
@@ -71,6 +121,7 @@ pub fn run(version_str: &str) -> Result<()> {
     Ok(())
 }
 
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
 fn ensure_brew_available() -> Result<()> {
     let status = std::process::Command::new("brew")
         .arg("--version")
